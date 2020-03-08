@@ -1,90 +1,47 @@
 package main
 
 import (
-	"errors"
-	"strconv"
-	"strings"
+	"log"
+	"net/http"
 	"time"
 )
 
-type RateRequest struct {
-	StartDate time.Time
-	EndDate   time.Time
+func PostRates(w http.ResponseWriter, r *http.Request) {
+	println("PostRates")
+}
+
+func GetRates(w http.ResponseWriter, r *http.Request) {
+	println("GetRates")
+}
+
+func ComputeRate(w http.ResponseWriter, r *http.Request) {
+	println("ComputeRate")
+}
+
+func GetMetrics(w http.ResponseWriter, r *http.Request) {
+	println("GetMetrics")
 }
 
 func main() {
+	ratesController := Controller{}
+	ratesController[http.MethodPost] = http.HandlerFunc(PostRates)
+	ratesController[http.MethodGet] = http.HandlerFunc(GetRates)
 
-}
+	priceController := Controller{}
+	priceController[http.MethodPost] = http.HandlerFunc(ComputeRate)
 
-/*
-Example:
-	{
-    	"days": "mon,tues,thurs",
-        "times": "0900-2100",
-        "tz": "America/Chicago",
-        "price": 1500
-    },
-*/
-type Rate struct {
-	Price    int    `json:"price"`
-	Timezone string `json:"tz"`
-	Times    string `json:"times"`
-	Days     string `json:"days"`
-}
+	metricsController := Controller{}
+	metricsController[http.MethodGet] = http.HandlerFunc(GetMetrics)
 
-// Returns the start and end time offsets respectively
-func (r Rate) GetTimes() (time.Duration, time.Duration, error) {
-	timesRaw := strings.Split(r.Times, "-")
-	if len(timesRaw) != 2 {
-		return 0, 0, errors.New("Invalid 'times' format expected 0000-0000")
-	}
-	startHour, err := strconv.ParseInt(timesRaw[0][0:2], 10, 8)
-	if err != nil {
-		return 0, 0, err
-	}
-	startMinute, err := strconv.ParseInt(timesRaw[0][2:], 10, 8)
-	if err != nil {
-		return 0, 0, err
-	}
-	endHour, err := strconv.ParseInt(timesRaw[1][0:2], 10, 8)
-	if err != nil {
-		return 0, 0, err
-	}
-	endMinute, err := strconv.ParseInt(timesRaw[1][2:], 10, 8)
-	if err != nil {
-		return 0, 0, err
-	}
-	startOffset := time.Duration(startHour)*time.Hour + time.Duration(startMinute)*time.Minute
-	endOffset := time.Duration(endHour)*time.Hour + time.Duration(endMinute)*time.Minute
-	return startOffset, endOffset, nil
-}
+	mux := http.NewServeMux()
 
-var days = map[string]int{
-	"sun":   0,
-	"mon":   1,
-	"tues":  2,
-	"wed":   3,
-	"thurs": 4,
-	"fri":   5,
-	"sat":   6,
-}
+	mux.Handle("/rates", ratesController)
+	mux.Handle("/price", priceController)
+	mux.Handle("/metrics", metricsController)
 
-func (r Rate) GetDays() []int {
-	daysRaw := strings.Split(r.Days, ",")
-	out := make([]int, 0, len(daysRaw))
-	for _, v := range daysRaw {
-		out = append(out, days[v])
-	}
-	return out
-}
-
-func IntContains(ints []int, toFind int) bool {
-	for _, v := range ints {
-		if v == toFind {
-			return true
-		}
-	}
-	return false
+	addr := ":3000"
+	log.Println("Listening on " + addr)
+	http.ListenAndServe(addr, mux)
 }
 
 // given a start date and time, end date and time, and rates - this returns a valid rate
@@ -123,4 +80,13 @@ func ComputePrice(rates []Rate, start, end time.Time) (int, error) {
 
 	// rate not found
 	return 0, nil
+}
+
+func IntContains(ints []int, toFind int) bool {
+	for _, v := range ints {
+		if v == toFind {
+			return true
+		}
+	}
+	return false
 }
