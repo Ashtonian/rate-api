@@ -1,47 +1,74 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"time"
 )
 
-func PostRates(w http.ResponseWriter, r *http.Request) {
+type RatesController struct {
+	Handler
+	Rates *RateStore
+}
+
+func NewRatesController(store *RateStore) *RatesController {
+	controller := RatesController{
+		Handler: Handler{},
+		Rates:   store,
+	}
+	controller.Handler[http.MethodPost] = http.HandlerFunc(controller.PostRates)
+	controller.Handler[http.MethodGet] = http.HandlerFunc(controller.GetRates)
+	return &controller
+}
+
+func (c *RatesController) PostRates(w http.ResponseWriter, r *http.Request) {
 	println("PostRates")
+	w.Header().Set("Content-Type", "application/json")
 }
 
-func GetRates(w http.ResponseWriter, r *http.Request) {
-	println("GetRates")
+func (c *RatesController) GetRates(w http.ResponseWriter, r *http.Request) {
+	rates := c.Rates.Get()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(rates)
 }
 
-func ComputeRate(w http.ResponseWriter, r *http.Request) {
-	println("ComputeRate")
+type PriceController struct {
+	Handler
+	Rates *RateStore
 }
 
-func GetMetrics(w http.ResponseWriter, r *http.Request) {
-	println("GetMetrics")
+func NewPriceController(store *RateStore) *PriceController {
+	controller := PriceController{
+		Handler: Handler{},
+		Rates:   store,
+	}
+	controller.Handler[http.MethodPost] = http.HandlerFunc(controller.ComputeRate)
+
+	return &controller
 }
 
-func main() {
-	ratesController := Controller{}
-	ratesController[http.MethodPost] = http.HandlerFunc(PostRates)
-	ratesController[http.MethodGet] = http.HandlerFunc(GetRates)
+func (c *PriceController) ComputeRate(w http.ResponseWriter, r *http.Request) {
+	decoder := json.NewDecoder(r.Body)
+	var req RateRequest
+	decoder.DisallowUnknownFields()
+	err := decoder.Decode(&req)
+	if err != nil {
+		// TODO:
+	}
+	price, err := ComputePrice([]Rate{}, req.StartDate.Time, req.EndDate.Time)
+	if err != nil {
+		// TODO:
+	}
 
-	priceController := Controller{}
-	priceController[http.MethodPost] = http.HandlerFunc(ComputeRate)
-
-	metricsController := Controller{}
-	metricsController[http.MethodGet] = http.HandlerFunc(GetMetrics)
-
-	mux := http.NewServeMux()
-
-	mux.Handle("/rates", ratesController)
-	mux.Handle("/price", priceController)
-	mux.Handle("/metrics", metricsController)
-
-	addr := ":3000"
-	log.Println("Listening on " + addr)
-	http.ListenAndServe(addr, mux)
+	var out interface{} = price
+	if price == 0 {
+		out = "unavailable"
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(out)
+	return
 }
 
 // given a start date and time, end date and time, and rates - this returns a valid rate
@@ -82,11 +109,40 @@ func ComputePrice(rates []Rate, start, end time.Time) (int, error) {
 	return 0, nil
 }
 
-func IntContains(ints []int, toFind int) bool {
-	for _, v := range ints {
-		if v == toFind {
-			return true
-		}
+func NewServer(store *RateStore) *http.ServeMux {
+	// TODO: panic handler middleware
+	// TODO: metric middleware
+
+	ratesController := NewRatesController(store)
+	priceController := NewPriceController(store)
+
+	metricsController := Handler{}
+	metricsController[http.MethodGet] = http.HandlerFunc(GetMetrics)
+
+	mux := http.NewServeMux()
+
+	mux.Handle("/rates", ratesController)
+	mux.Handle("/price", priceController)
+	mux.Handle("/metrics", metricsController)
+
+	return mux
+}
+
+// TODO: swagger doc
+func main() {
+	rateStore, err := RateStoreFromFile(".")
+	if err != nil {
+		panic(err)
 	}
-	return false
+	mux := NewServer(rateStore)
+	addr := ":3000"
+	log.Println("Listening on " + addr)
+	http.ListenAndServe(addr, mux)
+}
+
+// TODO: metric store
+// TODO: status code counts, response time
+func GetMetrics(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	println("GetMetrics")
 }
