@@ -140,7 +140,8 @@ func TestRatesEndpoint(t *testing.T) {
 	store := &RateStore{
 		rates: rates,
 	}
-	server := NewServer(store)
+	metricsStore := NewMetricsStore()
+	server := NewServer(store, metricsStore)
 
 	t.Run("Get Rates", func(t *testing.T) {
 		request, _ := http.NewRequest(http.MethodGet, "/rates", nil)
@@ -197,7 +198,8 @@ func TestPriceEndpoint(t *testing.T) {
 			},
 		},
 	}
-	server := NewServer(store)
+	metricsStore := NewMetricsStore()
+	server := NewServer(store, metricsStore)
 
 	t.Run("Compute Price Unavailable", func(t *testing.T) {
 		chicago, _ := time.LoadLocation("America/Chicago")
@@ -251,7 +253,8 @@ func TestMetricsEndpoint(t *testing.T) {
 			},
 		},
 	}
-	server := NewServer(store)
+	metricsStore := NewMetricsStore()
+	server := NewServer(store, metricsStore)
 	t.Run("Get Metrics", func(t *testing.T) {
 		request, _ := http.NewRequest(http.MethodGet, "/rates", nil)
 		response := httptest.NewRecorder()

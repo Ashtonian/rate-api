@@ -48,6 +48,7 @@ type Rate struct {
 }
 
 // Returns the start and end time offsets respectively
+// if R.Times == 0530-0645 it will return 5h30m and 6h45m durations
 func (r Rate) GetTimes() (time.Duration, time.Duration, error) {
 	timesRaw := strings.Split(r.Times, "-")
 	if len(timesRaw) != 2 {
@@ -84,6 +85,8 @@ var days = map[string]int{
 	"sat":   6,
 }
 
+// Returns the int version of days, matching  stdlib sunday = 0
+// if r.Days is "mon,wed,sat" this will return []{1,3,6}
 func (r Rate) GetDays() []int {
 	daysRaw := strings.Split(r.Days, ",")
 	out := make([]int, 0, len(daysRaw))
@@ -93,8 +96,10 @@ func (r Rate) GetDays() []int {
 	return out
 }
 
+// ISO8601 date format string
 var ISO8601 = "2006-01-02T15:04:05-07:00"
 
+// json marhsal-able ISO8601 type
 type ISO8601Time struct {
 	time.Time
 }
@@ -114,6 +119,7 @@ func (t ISO8601Time) MarshalJSON() ([]byte, error) {
 	return []byte(out), nil
 }
 
+// Store to manage the current active rates
 type RateStore struct {
 	rates []Rate
 }

@@ -1,0 +1,156 @@
+basePath: /
+definitions:
+  main.EndpointMetrics:
+    properties:
+      metrics:
+        additionalProperties:
+          $ref: '#/definitions/main.Metrics'
+        type: object
+    type: object
+  main.ErrorResponse:
+    properties:
+      error:
+        type: string
+    type: object
+  main.Metrics:
+    properties:
+      ms:
+        type: integer
+      requestCount:
+        type: integer
+      statusCodeCount:
+        additionalProperties:
+          type: integer
+        type: object
+    type: object
+  main.Rate:
+    properties:
+      days:
+        type: string
+      price:
+        type: integer
+      times:
+        type: string
+      tz:
+        type: string
+    type: object
+  main.Rates:
+    properties:
+      rates:
+        items:
+          $ref: '#/definitions/main.Rate'
+        type: array
+    type: object
+info:
+  contact:
+    email: support@todo.io
+    name: API Support
+  description: Rate-Api allows a user to enter a date time range and get back the
+    rate at which they would be charged to park for that time span built for spot
+    hero.
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  title: Rate API
+  version: "1.0"
+paths:
+  /metrics:
+    get:
+      consumes:
+      - application/json
+      description: Gets the api health metrics available.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.EndpointMetrics'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "404": {}
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Gets the api health metrics available.
+      tags:
+      - metrics
+  /price:
+    post:
+      consumes:
+      - application/json
+      description: Given the time range input this returns the price as int, or "unavailable".
+      produces:
+      - application/json
+      responses:
+        "200": {}
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "404": {}
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Given the time range input this returns the price as int, or "unavailable".
+      tags:
+      - rates
+  /rates/:
+    get:
+      consumes:
+      - application/json
+      description: Gets the current active rates.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.Rates'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "404": {}
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Gets the current active rates.
+      tags:
+      - rates
+    post:
+      consumes:
+      - application/json
+      description: Updates the current active rates based on user input.
+      parameters:
+      - description: Update Rates
+        in: body
+        name: Rates
+        required: true
+        schema:
+          $ref: '#/definitions/main.Rates'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.Rates'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "404": {}
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Updates the current active rates based on user input.
+      tags:
+      - rates
+swagger: "2.0"

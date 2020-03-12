@@ -2,9 +2,9 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -23,6 +23,18 @@ func NewRatesController(store *RateStore) *RatesController {
 	return &controller
 }
 
+// PostRates - updates the current active rates based on user input.
+// @Summary Updates the current active rates based on user input.
+// @Description Updates the current active rates based on user input.
+// @Tags rates
+// @Accept json
+// @Produce json
+// @Param Rates body Rates true "Update Rates"
+// @Success 200 {object} Rates
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 ""
+// @Failure 500 {object} ErrorResponse
+// @Router /rates/ [post]
 func (c *RatesController) PostRates(w http.ResponseWriter, r *http.Request) {
 	var rates Rates
 	if r.Body == nil {
@@ -37,6 +49,17 @@ func (c *RatesController) PostRates(w http.ResponseWriter, r *http.Request) {
 	c.GetRates(w, r)
 }
 
+// GetRates - Gets the current active rates.
+// @Summary Gets the current active rates.
+// @Description Gets the current active rates.
+// @Tags rates
+// @Accept json
+// @Produce json
+// @Success 200 {object} Rates
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 ""
+// @Failure 500 {object} ErrorResponse
+// @Router /rates/ [get]
 func (c *RatesController) GetRates(w http.ResponseWriter, r *http.Request) {
 	rates := c.Rates.Get()
 
@@ -55,12 +78,23 @@ func NewPriceController(store *RateStore) *PriceController {
 		Handler: Handler{},
 		Rates:   store,
 	}
-	controller.Handler[http.MethodPost] = http.HandlerFunc(controller.ComputeRate)
+	controller.Handler[http.MethodPost] = http.HandlerFunc(controller.ComputePrice)
 
 	return &controller
 }
 
-func (c *PriceController) ComputeRate(w http.ResponseWriter, r *http.Request) {
+// ComputePrice - Given the time range input this returns the price as int, or "unavailable".
+// @Summary Given the time range input this returns the price as int, or "unavailable".
+// @Description Given the time range input this returns the price as int, or "unavailable".
+// @Tags rates
+// @Accept json
+// @Produce json
+// @Success 200
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 ""
+// @Failure 500 {object} ErrorResponse
+// @Router /price [post]
+func (c *PriceController) ComputePrice(w http.ResponseWriter, r *http.Request) {
 	var req RateRequest
 	if r.Body == nil {
 		webError(w, http.StatusBadRequest, ErrMissingBody)
@@ -120,8 +154,6 @@ func ComputePrice(rates []Rate, start, end time.Time) (int, error) {
 		// is input within rate range and day?
 		if (start.After(rateStart) || start == rateStart) && (end.Before(rateEnd) || end == rateEnd) && IntContains(v.GetDays(), startDay) {
 			return v.Price, nil
-		} else {
-			fmt.Printf("Start: %v, rateStart: %v, end: %v,  rateEnd: %v, Days:%v, startDay: %v \n", start, rateStart, end, rateEnd, v.GetDays(), startDay)
 		}
 	}
 
@@ -129,13 +161,11 @@ func ComputePrice(rates []Rate, start, end time.Time) (int, error) {
 	return 0, nil
 }
 
-func NewServer(store *RateStore) *http.ServeMux {
-	metricsStore := NewMetricsStore()
-
+func NewServer(rateStore *RateStore, metricsStore *MetricsStore) *http.ServeMux {
 	metricsMiddleware := NewMetricsMiddleware(metricsStore)
 	panicMiddleware := NewRecoveryMiddleware()
-	ratesController := NewRatesController(store)
-	priceController := NewPriceController(store)
+	ratesController := NewRatesController(rateStore)
+	priceController := NewPriceController(rateStore)
 	metricsController := NewMetricsController(metricsStore)
 
 	mux := http.NewServeMux()
@@ -147,20 +177,31 @@ func NewServer(store *RateStore) *http.ServeMux {
 	return mux
 }
 
-// TODO: document
-// TODO: swagger doc
+// @title Rate API
+// @version 1.0
+// @description Rate-Api allows a user to enter a date time range and get back the rate at which they would be charged to park for that time span built for spot hero.
+
+// @contact.name API Support
+// @contact.email support@todo.io
+// @license.name Apache 2.0
+// @license.url http://www.apache.org/licenses/LICENSE-2.0.html
+// @BasePath /
 func main() {
-	// TODO: env port, dir
-	path := "."
+	path := os.Getenv("RATE_API_RATES_PATH")
 	if path == "" || path == "." {
 		path = "./rates.json"
+	}
+	portStr := os.Getenv("RATE_API_PORT")
+	if len(portStr) < 1 {
+		portStr = "3000"
 	}
 	rateStore, err := RateStoreFromFile(path)
 	if err != nil {
 		panic(err)
 	}
-	mux := NewServer(rateStore)
-	addr := ":3000"
+	metricsStore := NewMetricsStore()
+	mux := NewServer(rateStore, metricsStore)
+	addr := ":" + portStr
 	log.Println("Listening on " + addr)
 	http.ListenAndServe(addr, mux)
 }
@@ -180,6 +221,17 @@ func NewMetricsController(store *MetricsStore) *MetricsController {
 	return &controller
 }
 
+// GetMetrics - Gets the api health metrics available.
+// @Summary Gets the api health metrics available.
+// @Description Gets the api health metrics available.
+// @Tags metrics
+// @Accept json
+// @Produce json
+// @Success 200 {object} EndpointMetrics
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 ""
+// @Failure 500 {object} ErrorResponse
+// @Router /metrics [get]
 func (c *MetricsController) GetMetrics(w http.ResponseWriter, r *http.Request) {
 	metrics := c.store.Get()
 	w.Header().Set("Content-Type", "application/json")
