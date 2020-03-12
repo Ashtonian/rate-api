@@ -127,20 +127,19 @@ func ComputePrice(rates []Rate, start, end time.Time) (int, error) {
 }
 
 func NewServer(store *RateStore) *http.ServeMux {
-	// TODO: panic handler middleware
-	// TODO: metric middleware
+	metricsStore := NewMetricsStore()
 
+	metricsMiddleware := NewMetricsMiddleware(metricsStore)
+	panicMiddleware := NewRecoveryMiddleware()
 	ratesController := NewRatesController(store)
 	priceController := NewPriceController(store)
-
-	metricsController := Handler{}
-	metricsController[http.MethodGet] = http.HandlerFunc(GetMetrics)
+	metricsController := NewMetricsController(metricsStore)
 
 	mux := http.NewServeMux()
 
-	mux.Handle("/rates", ratesController)
-	mux.Handle("/price", priceController)
-	mux.Handle("/metrics", metricsController)
+	mux.Handle("/rates", MiddlewareChain(ratesController, panicMiddleware, metricsMiddleware))
+	mux.Handle("/price", MiddlewareChain(priceController, panicMiddleware, metricsMiddleware))
+	mux.Handle("/metrics", panicMiddleware(metricsController))
 
 	return mux
 }
@@ -162,9 +161,23 @@ func main() {
 	http.ListenAndServe(addr, mux)
 }
 
-// TODO: metric store
-// TODO: status code counts, response time
-func GetMetrics(w http.ResponseWriter, r *http.Request) {
+type MetricsController struct {
+	Handler
+	store *MetricsStore
+}
+
+func NewMetricsController(store *MetricsStore) *MetricsController {
+	controller := MetricsController{
+		Handler: Handler{},
+		store:   store,
+	}
+
+	controller.Handler[http.MethodGet] = http.HandlerFunc(controller.GetMetrics)
+	return &controller
+}
+
+func (c *MetricsController) GetMetrics(w http.ResponseWriter, r *http.Request) {
+	metrics := c.store.Get()
 	w.Header().Set("Content-Type", "application/json")
-	println("GetMetrics")
+	json.NewEncoder(w).Encode(metrics)
 }

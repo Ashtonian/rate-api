@@ -9,8 +9,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/davecgh/go-spew/spew"
 )
 
 /* cases TODO:
@@ -225,7 +223,6 @@ func TestPriceEndpoint(t *testing.T) {
 			StartDate: ISO8601Time{time.Date(2015, 7, 1, 1, 1, 0, 0, chicago)},
 			EndDate:   ISO8601Time{time.Date(2015, 7, 1, 1, 30, 0, 0, chicago)},
 		}
-		spew.Dump(rateRequest.StartDate.Day())
 		bod, _ := json.Marshal(rateRequest)
 		request, _ := http.NewRequest(http.MethodPost, "/price", bytes.NewBuffer(bod))
 		response := httptest.NewRecorder()
@@ -256,16 +253,19 @@ func TestMetricsEndpoint(t *testing.T) {
 	}
 	server := NewServer(store)
 	t.Run("Get Metrics", func(t *testing.T) {
-		request, _ := http.NewRequest(http.MethodGet, "/metrics", nil)
+		request, _ := http.NewRequest(http.MethodGet, "/rates", nil)
 		response := httptest.NewRecorder()
+		server.ServeHTTP(response, request)
+		request, _ = http.NewRequest(http.MethodGet, "/rates", nil)
+		response = httptest.NewRecorder()
+		server.ServeHTTP(response, request)
+
+		request, _ = http.NewRequest(http.MethodGet, "/metrics", nil)
+		response = httptest.NewRecorder()
 		server.ServeHTTP(response, request)
 
 		assertEqual(t, "Status Code", http.StatusOK, response.Result().StatusCode)
 		assertEqual(t, "Content Type", "application/json", response.Header().Get("content-type"))
-		expected := EndpointMetrics{}
-		foundBod := strings.TrimSpace(response.Body.String())
-
-		assertEqual(t, "Response Body", expected, foundBod)
 	})
 }
 
@@ -329,4 +329,41 @@ func TestRatesJSON(t *testing.T) {
 		t.Error(err)
 	}
 	assertEqual(t, "Serialize Rate Request", string(out), jsonRaw)
+}
+
+func TestMetricsRecord(t *testing.T) {
+	store := NewMetricsStore()
+
+	store.Record("test", "test", 200, 100)
+	store.Record("test", "test", 201, 300)
+	store.Record("test", "test2", 201, 300)
+
+	metrics := store.Get()
+	expected := map[string]Metrics{
+		"all|all": Metrics{
+			AvgResponseTime: 233,
+			RequestCount:    3,
+			StatusCodeCount: map[int]int{
+				200: 1,
+				201: 2,
+			},
+		},
+		"test|test": Metrics{
+			AvgResponseTime: 200,
+			RequestCount:    2,
+			StatusCodeCount: map[int]int{
+				200: 1,
+				201: 1,
+			},
+		},
+		"test|test2": Metrics{
+			AvgResponseTime: 300,
+			RequestCount:    1,
+			StatusCodeCount: map[int]int{
+				201: 1,
+			},
+		},
+	}
+
+	assertEqual(t, "Metrics Record Results", fmt.Sprintf("%v", expected), fmt.Sprintf("%v", metrics.Metrics))
 }

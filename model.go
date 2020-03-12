@@ -164,6 +164,19 @@ type Metrics struct {
 
 type MetricsStore struct {
 	metrics map[string]Metrics
+	allKey  string
+}
+
+func NewMetricsStore() *MetricsStore {
+	allKey := "all|all"
+	return &MetricsStore{
+		allKey: allKey,
+		metrics: map[string]Metrics{
+			allKey: Metrics{
+				StatusCodeCount: map[int]int{},
+			},
+		},
+	}
 }
 
 func (_ *MetricsStore) getKey(method, path string) string {
@@ -177,6 +190,12 @@ func (store *MetricsStore) Get() EndpointMetrics {
 }
 
 func (store *MetricsStore) Record(method, path string, statusCode, responseMs int) {
+	allMetrics, _ := store.metrics[store.allKey]
+	allMetrics.RequestCount++
+	allMetrics.AvgResponseTime = allMetrics.AvgResponseTime + (responseMs-allMetrics.AvgResponseTime)/allMetrics.RequestCount
+	allMetrics.StatusCodeCount[statusCode]++
+	store.metrics[store.allKey] = allMetrics
+
 	mKey := store.getKey(method, path)
 	v, found := store.metrics[mKey]
 	if !found {
@@ -192,4 +211,8 @@ func (store *MetricsStore) Record(method, path string, statusCode, responseMs in
 	v.AvgResponseTime = v.AvgResponseTime + (responseMs-v.AvgResponseTime)/v.RequestCount
 	v.StatusCodeCount[statusCode]++
 	store.metrics[mKey] = v
+}
+
+type ErrorResponse struct {
+	Error string `json:"error"`
 }
