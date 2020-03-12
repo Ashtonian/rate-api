@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -23,15 +24,22 @@ func NewRatesController(store *RateStore) *RatesController {
 }
 
 func (c *RatesController) PostRates(w http.ResponseWriter, r *http.Request) {
-	println("PostRates")
-	w.Header().Set("Content-Type", "application/json")
+	var rates Rates
+	err := json.NewDecoder(r.Body).Decode(&rates)
+	if err != nil {
+		return
+		// TODO:
+	}
+	c.Rates.Set(rates.Rates)
+	c.GetRates(w, r)
 }
 
 func (c *RatesController) GetRates(w http.ResponseWriter, r *http.Request) {
 	rates := c.Rates.Get()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(rates)
+	out := Rates{Rates: rates}
+	json.NewEncoder(w).Encode(out)
 }
 
 type PriceController struct {
@@ -50,15 +58,21 @@ func NewPriceController(store *RateStore) *PriceController {
 }
 
 func (c *PriceController) ComputeRate(w http.ResponseWriter, r *http.Request) {
-	decoder := json.NewDecoder(r.Body)
 	var req RateRequest
-	decoder.DisallowUnknownFields()
-	err := decoder.Decode(&req)
-	if err != nil {
+	if r.Body == nil {
+		return
 		// TODO:
 	}
-	price, err := ComputePrice([]Rate{}, req.StartDate.Time, req.EndDate.Time)
+	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
+		return
+		// TODO:
+	}
+
+	rates := c.Rates.Get()
+	price, err := ComputePrice(rates, req.StartDate.Time, req.EndDate.Time)
+	if err != nil {
+		return
 		// TODO:
 	}
 
@@ -66,9 +80,10 @@ func (c *PriceController) ComputeRate(w http.ResponseWriter, r *http.Request) {
 	if price == 0 {
 		out = "unavailable"
 	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(out)
-	return
+
 }
 
 // given a start date and time, end date and time, and rates - this returns a valid rate
@@ -100,8 +115,10 @@ func ComputePrice(rates []Rate, start, end time.Time) (int, error) {
 		rateEnd = rateEnd.In(rateLocation).Add(rateEndOffset)
 
 		// is input within rate range and day?
-		if start.After(rateStart) && end.Before(rateEnd) && IntContains(v.GetDays(), startDay) {
+		if (start.After(rateStart) || start == rateStart) && (end.Before(rateEnd) || end == rateEnd) && IntContains(v.GetDays(), startDay) {
 			return v.Price, nil
+		} else {
+			fmt.Printf("Start: %v, rateStart: %v, end: %v,  rateEnd: %v, Days:%v, startDay: %v \n", start, rateStart, end, rateEnd, v.GetDays(), startDay)
 		}
 	}
 
@@ -130,7 +147,12 @@ func NewServer(store *RateStore) *http.ServeMux {
 
 // TODO: swagger doc
 func main() {
-	rateStore, err := RateStoreFromFile(".")
+	// TODO: env port, dir
+	path := "."
+	if path == "" || path == "." {
+		path = "./rates.json"
+	}
+	rateStore, err := RateStoreFromFile(path)
 	if err != nil {
 		panic(err)
 	}

@@ -1,16 +1,19 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io/ioutil"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 )
 
-type Controller map[string]http.Handler
+type Handler map[string]http.Handler
 
-func (c Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (c Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	handler, found := c[r.Method]
 	if !found {
 		http.NotFound(w, r)
@@ -20,18 +23,22 @@ func (c Controller) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 type RateRequest struct {
-	StartDate time.Time
-	EndDate   time.Time
+	StartDate ISO8601Time `json:"startDate"`
+	EndDate   ISO8601Time `json:"endDate"`
+}
+
+type Rates struct {
+	Rates []Rate `json:"rates"`
 }
 
 /*
-Example:
-	{
-    	"days": "mon,tues,thurs",
-        "times": "0900-2100",
-        "tz": "America/Chicago",
-        "price": 1500
-    },
+Example Rate:
+{
+	"days": "mon,tues,thurs",
+	"times": "0900-2100",
+	"tz": "America/Chicago",
+	"price": 1500
+},
 */
 type Rate struct {
 	Price    int    `json:"price"`
@@ -84,4 +91,105 @@ func (r Rate) GetDays() []int {
 		out = append(out, days[v])
 	}
 	return out
+}
+
+var ISO8601 = "2006-01-02T15:04:05-07:00"
+
+type ISO8601Time struct {
+	time.Time
+}
+
+func (t *ISO8601Time) UnmarshalJSON(b []byte) error {
+	s := strings.Trim(string(b), "\"")
+	out, err := time.Parse(ISO8601, s)
+	if err != nil {
+		return err
+	}
+	*t = ISO8601Time{out}
+	return nil
+}
+
+func (t ISO8601Time) MarshalJSON() ([]byte, error) {
+	out := fmt.Sprintf("\"%s\"", t.Format(ISO8601))
+	return []byte(out), nil
+}
+
+type RateStore struct {
+	rates []Rate
+}
+
+func (store *RateStore) Get() []Rate {
+	return store.rates
+}
+
+func (store *RateStore) Set(rates []Rate) {
+	store.rates = rates
+}
+
+func RateStoreFromFile(path string) (*RateStore, error) {
+	file, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var rates Rates
+
+	err = json.Unmarshal(file, &rates)
+	if err != nil {
+		return nil, err
+	}
+	store := &RateStore{
+		rates: rates.Rates,
+	}
+	return store, nil
+}
+
+func IntContains(ints []int, toFind int) bool {
+	for _, v := range ints {
+		if v == toFind {
+			return true
+		}
+	}
+	return false
+}
+
+type EndpointMetrics struct {
+	Metrics map[string]Metrics `json:"metrics"`
+}
+type Metrics struct {
+	AvgResponseTime int         `json:"ms"`
+	RequestCount    int         `json:"requestCount"`
+	StatusCodeCount map[int]int `json:"statusCodeCount"`
+}
+
+type MetricsStore struct {
+	metrics map[string]Metrics
+}
+
+func (_ *MetricsStore) getKey(method, path string) string {
+	return fmt.Sprintf("%s|%s", method, path)
+}
+
+func (store *MetricsStore) Get() EndpointMetrics {
+	return EndpointMetrics{
+		Metrics: store.metrics,
+	}
+}
+
+func (store *MetricsStore) Record(method, path string, statusCode, responseMs int) {
+	mKey := store.getKey(method, path)
+	v, found := store.metrics[mKey]
+	if !found {
+		store.metrics[mKey] = Metrics{
+			AvgResponseTime: responseMs,
+			RequestCount:    1,
+			StatusCodeCount: map[int]int{statusCode: 1},
+		}
+		return
+	}
+
+	v.RequestCount++
+	v.AvgResponseTime = v.AvgResponseTime + (responseMs-v.AvgResponseTime)/v.RequestCount
+	v.StatusCodeCount[statusCode]++
+	store.metrics[mKey] = v
 }
