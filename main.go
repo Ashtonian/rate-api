@@ -152,7 +152,7 @@ func GetRate(rates []Rate, start, end time.Time) (int, error) {
 		rateEnd = rateEnd.In(rateLocation).Add(rateEndOffset)
 
 		// is input within rate range and day?
-		if (start.After(rateStart) || start == rateStart) && (end.Before(rateEnd) || end == rateEnd) && IntContains(v.GetDays(), startDay) {
+		if (start.After(rateStart) || start.Equal(rateStart)) && (end.Before(rateEnd) || end.Equal(rateEnd)) && IntContains(v.GetDays(), startDay) {
 			return v.Price, nil
 		}
 	}

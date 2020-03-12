@@ -11,14 +11,6 @@ import (
 	"time"
 )
 
-/* cases TODO:
-   start and end date in diff time zone
-   start and end date are different dates
-   start and end date span multiple rates
-   historical handle zone that changes
-   test minutes
-   test edge of exact rate request == rate start
-*/
 type ComputePriceCase struct {
 	Request     RateRequest
 	Expected    int
@@ -28,7 +20,7 @@ type ComputePriceCase struct {
 func TestComputePrice(t *testing.T) {
 	rates := []Rate{
 		Rate{
-			Days:     "mon,tues,thurs",
+			Days:     "mon,tues",
 			Times:    "0900-2100",
 			Timezone: "America/Chicago",
 			Price:    1500,
@@ -57,9 +49,16 @@ func TestComputePrice(t *testing.T) {
 			Timezone: "America/Chicago",
 			Price:    925,
 		},
+		Rate{
+			Days:     "thurs",
+			Times:    "0130-0730",
+			Timezone: "America/New_York",
+			Price:    985,
+		},
 	}
 
 	chicago, _ := time.LoadLocation("America/Chicago")
+	ny, _ := time.LoadLocation("America/New_York")
 	karachi, _ := time.LoadLocation("Asia/Karachi")
 
 	cases := []ComputePriceCase{
@@ -78,6 +77,54 @@ func TestComputePrice(t *testing.T) {
 			},
 			Expected:    2000,
 			Description: "Normal Case 2",
+		},
+		ComputePriceCase{
+			Request: RateRequest{
+				StartDate: ISO8601Time{time.Date(2015, 7, 1, 6, 0, 0, 0, chicago)},
+				EndDate:   ISO8601Time{time.Date(2015, 7, 1, 18, 0, 0, 0, chicago)},
+			},
+			Expected:    1750,
+			Description: "Request equals rate edge",
+		},
+		ComputePriceCase{
+			Request: RateRequest{
+				StartDate: ISO8601Time{time.Date(2015, 7, 1, 6, 0, 0, 0, chicago)},
+				EndDate:   ISO8601Time{time.Date(2015, 7, 1, 18, 0, 0, 0, chicago)},
+			},
+			Expected:    1750,
+			Description: "Request equals rate edge",
+		},
+		ComputePriceCase{
+			Request: RateRequest{
+				StartDate: ISO8601Time{time.Date(2015, 7, 2, 1, 45, 0, 0, chicago)},
+				EndDate:   ISO8601Time{time.Date(2015, 7, 2, 6, 50, 0, 0, chicago)},
+			},
+			Expected:    985,
+			Description: "Test Minutes valid",
+		},
+		ComputePriceCase{
+			Request: RateRequest{
+				StartDate: ISO8601Time{time.Date(2015, 7, 2, 1, 29, 0, 0, chicago)},
+				EndDate:   ISO8601Time{time.Date(2015, 7, 2, 6, 50, 0, 0, chicago)},
+			},
+			Expected:    0,
+			Description: "Test Minutes invalid",
+		},
+		ComputePriceCase{
+			Request: RateRequest{
+				StartDate: ISO8601Time{time.Date(2015, 7, 1, 7, 0, 0, 0, chicago)},
+				EndDate:   ISO8601Time{time.Date(2015, 7, 1, 17, 0, 0, 0, ny)},
+			},
+			Expected:    1750,
+			Description: "Request spans multiple timezones but is valid",
+		},
+		ComputePriceCase{
+			Request: RateRequest{
+				StartDate: ISO8601Time{time.Date(2015, 7, 1, 7, 0, 0, 0, ny)},
+				EndDate:   ISO8601Time{time.Date(2015, 7, 1, 17, 0, 0, 0, ny)},
+			},
+			Expected:    1750,
+			Description: "Different Timezone",
 		},
 		ComputePriceCase{
 			Request: RateRequest{
@@ -205,7 +252,7 @@ func TestPriceEndpoint(t *testing.T) {
 		chicago, _ := time.LoadLocation("America/Chicago")
 		rateRequest := RateRequest{
 			StartDate: ISO8601Time{time.Date(2015, 7, 1, 1, 0, 0, 0, chicago)},
-			EndDate:   ISO8601Time{time.Date(2015, 7, 1, 1, 30, 0, 0, chicago)},
+			EndDate:   ISO8601Time{time.Date(2015, 7, 1, 2, 30, 0, 0, chicago)},
 		}
 		bod, _ := json.Marshal(rateRequest)
 		request, _ := http.NewRequest(http.MethodPost, "/rate", bytes.NewBuffer(bod))
