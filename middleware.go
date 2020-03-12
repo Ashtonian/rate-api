@@ -58,7 +58,7 @@ func NewRecoveryMiddleware() func(http.Handler) http.Handler {
 				if err != nil {
 					fmt.Printf("Api Panic Recovered:%s", err)
 					response := ErrorResponse{
-						Error: "There was an internal server error",
+						Error: ErrInternal,
 					}
 
 					bod, _ := json.Marshal(response)

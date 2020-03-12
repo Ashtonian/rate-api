@@ -216,3 +216,18 @@ func (store *MetricsStore) Record(method, path string, statusCode, responseMs in
 type ErrorResponse struct {
 	Error string `json:"error"`
 }
+
+func webError(w http.ResponseWriter, statusCode int, msg string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	res := ErrorResponse{
+		Error: msg,
+	}
+	json.NewEncoder(w).Encode(res)
+}
+
+var (
+	ErrMissingBody = "Missing required body"
+	ErrBadBody     = "Error parsing json"
+	ErrInternal    = "There was an internal server error"
+)

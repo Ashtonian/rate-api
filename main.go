@@ -25,10 +25,13 @@ func NewRatesController(store *RateStore) *RatesController {
 
 func (c *RatesController) PostRates(w http.ResponseWriter, r *http.Request) {
 	var rates Rates
+	if r.Body == nil {
+		webError(w, http.StatusBadRequest, ErrMissingBody)
+	}
 	err := json.NewDecoder(r.Body).Decode(&rates)
 	if err != nil {
+		webError(w, http.StatusBadRequest, ErrBadBody)
 		return
-		// TODO:
 	}
 	c.Rates.Set(rates.Rates)
 	c.GetRates(w, r)
@@ -60,20 +63,20 @@ func NewPriceController(store *RateStore) *PriceController {
 func (c *PriceController) ComputeRate(w http.ResponseWriter, r *http.Request) {
 	var req RateRequest
 	if r.Body == nil {
+		webError(w, http.StatusBadRequest, ErrMissingBody)
 		return
-		// TODO:
 	}
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
+		webError(w, http.StatusBadRequest, ErrBadBody)
 		return
-		// TODO:
 	}
 
 	rates := c.Rates.Get()
 	price, err := ComputePrice(rates, req.StartDate.Time, req.EndDate.Time)
 	if err != nil {
+		webError(w, http.StatusInternalServerError, ErrInternal)
 		return
-		// TODO:
 	}
 
 	var out interface{} = price
@@ -144,6 +147,7 @@ func NewServer(store *RateStore) *http.ServeMux {
 	return mux
 }
 
+// TODO: document
 // TODO: swagger doc
 func main() {
 	// TODO: env port, dir
