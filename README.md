@@ -5,7 +5,7 @@ Rate-Api allows a user to enter a date time range and get back the rate at which
 ## Feature Summary
 
 * Get/Set parking rates via `/rates`
-* Get parking price via `/price`
+* Get parking price via `/rate`
 * Get metrics via `/metrics`
 * Docker build (see commands below)
 * Swagger file located `./docs/swagger.yaml`
