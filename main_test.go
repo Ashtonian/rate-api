@@ -98,7 +98,7 @@ func TestComputePrice(t *testing.T) {
 	}
 
 	for _, v := range cases {
-		out, err := ComputePrice(rates, v.Request.StartDate.Time, v.Request.EndDate.Time)
+		out, err := GetRate(rates, v.Request.StartDate.Time, v.Request.EndDate.Time)
 
 		if err != nil {
 			msg := "ERROR testing %v: %v"
@@ -208,7 +208,7 @@ func TestPriceEndpoint(t *testing.T) {
 			EndDate:   ISO8601Time{time.Date(2015, 7, 1, 1, 30, 0, 0, chicago)},
 		}
 		bod, _ := json.Marshal(rateRequest)
-		request, _ := http.NewRequest(http.MethodPost, "/price", bytes.NewBuffer(bod))
+		request, _ := http.NewRequest(http.MethodPost, "/rate", bytes.NewBuffer(bod))
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)
@@ -226,7 +226,7 @@ func TestPriceEndpoint(t *testing.T) {
 			EndDate:   ISO8601Time{time.Date(2015, 7, 1, 1, 30, 0, 0, chicago)},
 		}
 		bod, _ := json.Marshal(rateRequest)
-		request, _ := http.NewRequest(http.MethodPost, "/price", bytes.NewBuffer(bod))
+		request, _ := http.NewRequest(http.MethodPost, "/rate", bytes.NewBuffer(bod))
 		response := httptest.NewRecorder()
 
 		server.ServeHTTP(response, request)

@@ -68,24 +68,24 @@ func (c *RatesController) GetRates(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(out)
 }
 
-type PriceController struct {
+type RateController struct {
 	Handler
 	Rates *RateStore
 }
 
-func NewPriceController(store *RateStore) *PriceController {
-	controller := PriceController{
+func NewRateController(store *RateStore) *RateController {
+	controller := RateController{
 		Handler: Handler{},
 		Rates:   store,
 	}
-	controller.Handler[http.MethodPost] = http.HandlerFunc(controller.ComputePrice)
+	controller.Handler[http.MethodPost] = http.HandlerFunc(controller.GetRate)
 
 	return &controller
 }
 
-// ComputePrice - Given the time range input this returns the price as int, or "unavailable".
-// @Summary Given the time range input this returns the price as int, or "unavailable".
-// @Description Given the time range input this returns the price as int, or "unavailable".
+// GetRate - Given the time range input this returns the rate as int, or "unavailable".
+// @Summary Given the time range input this returns the rate as int, or "unavailable".
+// @Description Given the time range input this returns the rate as int, or "unavailable".
 // @Tags rates
 // @Accept json
 // @Produce json
@@ -93,8 +93,8 @@ func NewPriceController(store *RateStore) *PriceController {
 // @Failure 400 {object} ErrorResponse
 // @Failure 404 ""
 // @Failure 500 {object} ErrorResponse
-// @Router /price [post]
-func (c *PriceController) ComputePrice(w http.ResponseWriter, r *http.Request) {
+// @Router /rate [post]
+func (c *RateController) GetRate(w http.ResponseWriter, r *http.Request) {
 	var req RateRequest
 	if r.Body == nil {
 		webError(w, http.StatusBadRequest, ErrMissingBody)
@@ -107,14 +107,14 @@ func (c *PriceController) ComputePrice(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rates := c.Rates.Get()
-	price, err := ComputePrice(rates, req.StartDate.Time, req.EndDate.Time)
+	rate, err := GetRate(rates, req.StartDate.Time, req.EndDate.Time)
 	if err != nil {
 		webError(w, http.StatusInternalServerError, ErrInternal)
 		return
 	}
 
-	var out interface{} = price
-	if price == 0 {
+	var out interface{} = rate
+	if rate == 0 {
 		out = "unavailable"
 	}
 
@@ -124,9 +124,9 @@ func (c *PriceController) ComputePrice(w http.ResponseWriter, r *http.Request) {
 }
 
 // given a start date and time, end date and time, and rates - this returns a valid rate
-// returns 0 if prices is unavailable or input spans multiple rates or days.
-// otherwise returns price offset ie if rate is $9.25 this returns 925
-func ComputePrice(rates []Rate, start, end time.Time) (int, error) {
+// returns 0 if rates is unavailable or input spans multiple rates or days.
+// otherwise returns rate offset ie if rate is $9.25 this returns 925
+func GetRate(rates []Rate, start, end time.Time) (int, error) {
 	// does the start / end span multiple days
 	if start.UTC().Year() != end.UTC().Year() || start.UTC().YearDay() != end.UTC().YearDay() {
 		return 0, nil
@@ -165,13 +165,13 @@ func NewServer(rateStore *RateStore, metricsStore *MetricsStore) *http.ServeMux 
 	metricsMiddleware := NewMetricsMiddleware(metricsStore)
 	panicMiddleware := NewRecoveryMiddleware()
 	ratesController := NewRatesController(rateStore)
-	priceController := NewPriceController(rateStore)
+	rateController := NewRateController(rateStore)
 	metricsController := NewMetricsController(metricsStore)
 
 	mux := http.NewServeMux()
 
 	mux.Handle("/rates", MiddlewareChain(ratesController, panicMiddleware, metricsMiddleware))
-	mux.Handle("/price", MiddlewareChain(priceController, panicMiddleware, metricsMiddleware))
+	mux.Handle("/rate", MiddlewareChain(rateController, panicMiddleware, metricsMiddleware))
 	mux.Handle("/metrics", panicMiddleware(metricsController))
 
 	return mux
